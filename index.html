@@ -117,8 +117,8 @@
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
 
-      // Step 1: Sign in via REST API directly
-      let accessToken;
+      // Step 1: Sign in via REST API to get tokens
+      let accessToken, refreshToken;
       try {
         const signInResp = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
           method: 'POST',
@@ -129,91 +129,46 @@
           body: JSON.stringify({ email, password }),
         });
         const signInData = await signInResp.json();
-        console.log('Sign in response:', signInResp.status, signInData);
+        console.log('Sign in response:', signInResp.status);
 
         if (!signInResp.ok || !signInData.access_token) {
           showError('Invalid email or password: ' + (signInData.error_description || signInData.msg || 'Unknown error'));
           return;
         }
         accessToken = signInData.access_token;
-        console.log('Sign in successful, got access token');
+        refreshToken = signInData.refresh_token;
+        console.log('Sign in successful');
       } catch (err) {
         showError('Sign in failed: ' + err.message);
         return;
       }
 
+      // Step 2: Set the session on the JS client
+      await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      console.log('Session set on JS client');
+
       spinner.style.display = 'block';
       form.style.display = 'none';
 
-      // Step 2: Get authorization details (binds user to authorization)
+      // Step 3: Approve using JS client (handles redirect properly)
       try {
-        const detailsResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId, {
-          method: 'GET',
-          headers: {
-            'Authorization': 'Bearer ' + accessToken,
-            'apikey': SUPABASE_ANON_KEY,
-          },
-        });
-        const detailsData = await detailsResp.json();
-        console.log('Authorization details:', detailsResp.status, detailsData);
-      } catch (err) {
-        console.error('getAuthorizationDetails failed:', err);
-        // Continue anyway
-      }
+        const { data, error: approveError } = await sb.auth.oauth.approveAuthorization(authorizationId);
+        console.log('Approve result:', data, approveError);
 
-      // Step 3: Approve authorization
-      try {
-        const approveResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId, {
-          method: 'PUT',
-          headers: {
-            'Authorization': 'Bearer ' + accessToken,
-            'apikey': SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ approved: true }),
-          redirect: 'manual',
-        });
-        
-        console.log('Approve response status:', approveResp.status, approveResp.type);
-        
-        // 302/303 redirect means success — get the Location header
-        if (approveResp.status === 302 || approveResp.status === 303 || approveResp.type === 'opaqueredirect') {
-          const location = approveResp.headers.get('Location');
-          console.log('Redirect to:', location);
-          if (location) {
-            window.location.href = location;
-            return;
-          }
-        }
-
-        // If we get an opaque redirect (CORS blocks Location header), 
-        // try the same request without redirect:manual to let the browser follow it
-        if (approveResp.type === 'opaqueredirect') {
-          console.log('Opaque redirect — letting browser follow');
-          window.location.href = SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId + '?approved=true';
+        if (approveError) {
+          showError('Authorization failed: ' + approveError.message);
           return;
         }
-        
-        // Try to parse JSON response
-        const text = await approveResp.text();
-        console.log('Approve response body:', text);
-        
-        if (text) {
-          const approveData = JSON.parse(text);
-          if (approveData.redirect_to) {
-            window.location.href = approveData.redirect_to;
-            return;
-          }
-          if (!approveResp.ok) {
-            showError('Authorization failed: ' + (approveData.message || JSON.stringify(approveData)));
-            return;
-          }
+
+        if (data && data.redirect_to) {
+          window.location.href = data.redirect_to;
+        } else {
+          document.querySelector('.card').innerHTML = '<h1>Authorized</h1><p class="subtitle">You can close this window.</p>';
         }
-        
-        document.querySelector('.card').innerHTML = '<h1>Authorized</h1><p class="subtitle">You can close this window.</p>';
       } catch (err) {
         showError('Authorization failed: ' + err.message);
       }
+    });
     });
 
     // Deny flow
