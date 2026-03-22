@@ -104,29 +104,8 @@
       denyBtn.disabled = false;
     }
 
-    // On page load, try to get authorization details
-    // This also validates the authorization_id is real
-    async function init() {
-      if (!authorizationId) return;
-      try {
-        const { data: authDetails, error } = await sb.auth.oauth.getAuthorizationDetails(authorizationId);
-        if (error) {
-          console.error('getAuthorizationDetails error:', error);
-          // If there's a redirect_to in the error response, follow it
-        }
-        if (authDetails) {
-          console.log('Authorization details:', authDetails);
-          // If getAuthorizationDetails returns a redirect_to, we need to handle it
-          if (authDetails.redirect_to) {
-            window.location.href = authDetails.redirect_to;
-            return;
-          }
-        }
-      } catch (err) {
-        console.error('Init error:', err);
-      }
-    }
-    init();
+    // Page ready — wait for user to sign in and approve
+    console.log('Consent page loaded. Authorization ID:', authorizationId);
 
     // Approve flow
     form.addEventListener('submit', async (e) => {
@@ -149,20 +128,13 @@
         return;
       }
 
-      // Step 2: Get authorization details (now that we're authenticated)
+      console.log('Sign in successful, approving authorization...');
+
+      // Step 2: Approve immediately after sign-in
       spinner.style.display = 'block';
       form.style.display = 'none';
 
       try {
-        const { data: details, error: detailsError } = await sb.auth.oauth.getAuthorizationDetails(authorizationId);
-        console.log('Auth details after login:', details, detailsError);
-
-        if (detailsError) {
-          showError('Authorization details failed: ' + detailsError.message);
-          return;
-        }
-
-        // Step 3: Approve
         const { data, error: approveError } = await sb.auth.oauth.approveAuthorization(authorizationId);
         console.log('Approve result:', data, approveError);
 
