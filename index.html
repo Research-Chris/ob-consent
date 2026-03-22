@@ -128,13 +128,22 @@
         return;
       }
 
-      console.log('Sign in successful, approving authorization...');
+      console.log('Sign in successful');
 
-      // Step 2: Approve immediately after sign-in
+      // Step 2: Get authorization details (binds user session to authorization)
       spinner.style.display = 'block';
       form.style.display = 'none';
 
       try {
+        const { data: details, error: detailsError } = await sb.auth.oauth.getAuthorizationDetails(authorizationId);
+        console.log('Authorization details:', details, detailsError);
+
+        if (detailsError) {
+          console.error('getAuthorizationDetails failed:', detailsError);
+          // Try to approve anyway
+        }
+
+        // Step 3: Approve
         const { data, error: approveError } = await sb.auth.oauth.approveAuthorization(authorizationId);
         console.log('Approve result:', data, approveError);
 
