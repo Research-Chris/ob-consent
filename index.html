@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open Brain — Authorize</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #F6F5F0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+    }
+    h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
+    .subtitle { font-size: 14px; color: #888; margin-bottom: 24px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    input[type="email"], input[type="password"] {
+      width: 100%; padding: 10px 12px; border: 1px solid #ddd;
+      border-radius: 8px; font-size: 14px; margin-bottom: 16px;
+      outline: none; transition: border-color 0.15s;
+    }
+    input:focus { border-color: #378ADD; }
+    .btn {
+      width: 100%; padding: 12px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-primary { background: #1a1a1a; color: white; margin-bottom: 8px; }
+    .btn-deny { background: transparent; color: #888; border: 1px solid #ddd; }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .error { background: #FCEBEB; border: 1px solid #F09595; color: #791F1F; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .info { background: #E6F1FB; border: 1px solid #85B7EB; color: #0C447C; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
+    .spinner { display: none; text-align: center; padding: 20px; color: #888; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Open Brain To-Do</h1>
+    <p class="subtitle">Authorize Claude to access your tasks</p>
+
+    <div class="info">
+      Claude is requesting access to your To-Do list. Sign in to approve.
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="spinner" class="spinner">Authorizing...</div>
+
+    <form id="consent-form">
+      <label>Email</label>
+      <input type="email" id="email" required autofocus>
+
+      <label>Password</label>
+      <input type="password" id="password" required>
+
+      <button type="submit" id="approve-btn" class="btn btn-primary">
+        Sign in &amp; Approve
+      </button>
+      <button type="button" id="deny-btn" class="btn btn-deny">
+        Deny
+      </button>
+    </form>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    // Extract authorization_id from URL
+    const params = new URLSearchParams(window.location.search);
+    const authorizationId = params.get('authorization_id');
+
+    if (!authorizationId) {
+      document.getElementById('error').textContent = 'Missing authorization_id. Please try connecting again from Claude.';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('consent-form').style.display = 'none';
+    }
+
+    // Initialize Supabase client
+    // REPLACE with your actual project URL and anon key
+    const SUPABASE_URL = 'https://nxirjlemmfnptwacnagh.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_twdCF-ILI8kJFA4B0Fhx3g_Lln9D5ff';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const form = document.getElementById('consent-form');
+    const errorDiv = document.getElementById('error');
+    const spinner = document.getElementById('spinner');
+    const approveBtn = document.getElementById('approve-btn');
+    const denyBtn = document.getElementById('deny-btn');
+
+    function showError(msg) {
+      errorDiv.textContent = msg;
+      errorDiv.style.display = 'block';
+      spinner.style.display = 'none';
+      form.style.display = 'block';
+      approveBtn.disabled = false;
+      denyBtn.disabled = false;
+    }
+
+    // Approve flow
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorDiv.style.display = 'none';
+      approveBtn.disabled = true;
+      denyBtn.disabled = true;
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      // Sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (signInError) {
+        showError('Invalid email or password');
+        return;
+      }
+
+      // Approve the authorization
+      spinner.style.display = 'block';
+      form.style.display = 'none';
+
+      try {
+        const { data, error: approveError } = await supabase.auth.oauth.approveAuthorization(authorizationId);
+
+        if (approveError) {
+          showError('Authorization failed: ' + approveError.message);
+          return;
+        }
+
+        if (data && data.redirect_to) {
+          window.location.href = data.redirect_to;
+        } else {
+          document.querySelector('.card').innerHTML = '<h1>Authorized</h1><p class="subtitle">You can close this window.</p>';
+        }
+      } catch (err) {
+        showError('Authorization failed: ' + err.message);
+      }
+    });
+
+    // Deny flow
+    denyBtn.addEventListener('click', async () => {
+      approveBtn.disabled = true;
+      denyBtn.disabled = true;
+
+      try {
+        const { data, error: denyError } = await supabase.auth.oauth.denyAuthorization(authorizationId);
+
+        if (denyError) {
+          showError('Deny failed: ' + denyError.message);
+          return;
+        }
+
+        if (data && data.redirect_to) {
+          window.location.href = data.redirect_to;
+        } else {
+          document.querySelector('.card').innerHTML = '<h1>Access denied</h1><p class="subtitle">You can close this window.</p>';
+        }
+      } catch (err) {
+        showError('Failed: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
