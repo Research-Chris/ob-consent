@@ -8,191 +8,141 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #F6F5F0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
+      background: #F6F5F0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
     }
     .card {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-      padding: 40px;
-      width: 100%;
-      max-width: 400px;
+      background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      padding: 40px; width: 100%; max-width: 400px;
     }
     h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; color: #1a1a1a; }
     .subtitle { font-size: 14px; color: #888; margin-bottom: 24px; }
     label { display: block; font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
     input[type="email"], input[type="password"] {
       width: 100%; padding: 10px 12px; border: 1px solid #ddd;
-      border-radius: 8px; font-size: 14px; margin-bottom: 16px;
-      outline: none; transition: border-color 0.15s;
+      border-radius: 8px; font-size: 14px; margin-bottom: 16px; outline: none;
     }
     input:focus { border-color: #378ADD; }
     .btn {
       width: 100%; padding: 12px; border: none; border-radius: 8px;
       font-size: 14px; font-weight: 600; cursor: pointer;
-      transition: opacity 0.15s;
     }
     .btn-primary { background: #1a1a1a; color: white; margin-bottom: 8px; }
     .btn-deny { background: transparent; color: #888; border: 1px solid #ddd; }
-    .btn:hover { opacity: 0.85; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .error { background: #FCEBEB; border: 1px solid #F09595; color: #791F1F; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+    #error { background: #FCEBEB; border: 1px solid #F09595; color: #791F1F; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
     .info { background: #E6F1FB; border: 1px solid #85B7EB; color: #0C447C; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; }
-    .spinner { display: none; text-align: center; padding: 20px; color: #888; font-size: 14px; }
+    #status { text-align: center; padding: 20px; color: #888; font-size: 14px; display: none; }
   </style>
 </head>
 <body>
-  <div class="card">
+  <div class="card" id="card">
     <h1>Open Brain To-Do</h1>
     <p class="subtitle">Authorize Claude to access your tasks</p>
-
-    <div class="info">
-      Claude is requesting access to your To-Do list. Sign in to approve.
-    </div>
-
-    <div id="error" class="error"></div>
-    <div id="spinner" class="spinner">Authorizing...</div>
-
-    <form id="consent-form">
-      <label>Email</label>
+    <div class="info">Claude is requesting access to your To-Do list. Sign in to approve.</div>
+    <div id="error"></div>
+    <div id="status"></div>
+    <div id="form-container">
+      <label>EMAIL</label>
       <input type="email" id="email" required autofocus>
-
-      <label>Password</label>
+      <label>PASSWORD</label>
       <input type="password" id="password" required>
-
-      <button type="submit" id="approve-btn" class="btn btn-primary">
-        Sign in &amp; Approve
-      </button>
-      <button type="button" id="deny-btn" class="btn btn-deny">
-        Deny
-      </button>
-    </form>
+      <button class="btn btn-primary" id="approve-btn" onclick="handleApprove()">Sign in &amp; Approve</button>
+      <button class="btn btn-deny" id="deny-btn" onclick="handleDeny()">Deny</button>
+    </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const params = new URLSearchParams(window.location.search);
-    const authorizationId = params.get('authorization_id');
+    var SUPABASE_URL = 'https://nxirjlemmfnptwacnagh.supabase.co';
+    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54aXJqbGVtbWZucHR3YWNuYWdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ4NzIsImV4cCI6MjA4OTYxMDg3Mn0.bW2vL4yFTnqdyhglYHDqxjOHw4EkYwxVGJo6RLr_kIY';
 
-    const SUPABASE_URL = 'https://nxirjlemmfnptwacnagh.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54aXJqbGVtbWZucHR3YWNuYWdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ4NzIsImV4cCI6MjA4OTYxMDg3Mn0.bW2vL4yFTnqdyhglYHDqxjOHw4EkYwxVGJo6RLr_kIY';
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    var params = new URLSearchParams(window.location.search);
+    var authorizationId = params.get('authorization_id');
 
-    const form = document.getElementById('consent-form');
-    const errorDiv = document.getElementById('error');
-    const spinner = document.getElementById('spinner');
-    const approveBtn = document.getElementById('approve-btn');
-    const denyBtn = document.getElementById('deny-btn');
+    var _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     if (!authorizationId) {
-      errorDiv.textContent = 'Missing authorization_id. Please try connecting again from Claude.';
-      errorDiv.style.display = 'block';
-      form.style.display = 'none';
+      document.getElementById('error').textContent = 'Missing authorization_id.';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('form-container').style.display = 'none';
     }
 
     function showError(msg) {
-      errorDiv.textContent = msg;
-      errorDiv.style.display = 'block';
-      spinner.style.display = 'none';
-      form.style.display = 'block';
-      approveBtn.disabled = false;
-      denyBtn.disabled = false;
+      document.getElementById('error').textContent = msg;
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('status').style.display = 'none';
+      document.getElementById('form-container').style.display = 'block';
+      document.getElementById('approve-btn').disabled = false;
+      document.getElementById('deny-btn').disabled = false;
     }
 
-    // Page ready — wait for user to sign in and approve
-    console.log('Consent page loaded. Authorization ID:', authorizationId);
+    function showStatus(msg) {
+      document.getElementById('status').textContent = msg;
+      document.getElementById('status').style.display = 'block';
+      document.getElementById('form-container').style.display = 'none';
+      document.getElementById('error').style.display = 'none';
+    }
 
-    // Approve flow
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      errorDiv.style.display = 'none';
-      approveBtn.disabled = true;
-      denyBtn.disabled = true;
+    async function handleApprove() {
+      document.getElementById('error').style.display = 'none';
+      document.getElementById('approve-btn').disabled = true;
+      document.getElementById('deny-btn').disabled = true;
 
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
+      var email = document.getElementById('email').value;
+      var password = document.getElementById('password').value;
 
-      // Step 1: Sign in via REST API to get tokens
-      let accessToken, refreshToken;
-      try {
-        const signInResp = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({ email, password }),
-        });
-        const signInData = await signInResp.json();
-        console.log('Sign in response:', signInResp.status);
-
-        if (!signInResp.ok || !signInData.access_token) {
-          showError('Invalid email or password: ' + (signInData.error_description || signInData.msg || 'Unknown error'));
-          return;
-        }
-        accessToken = signInData.access_token;
-        refreshToken = signInData.refresh_token;
-        console.log('Sign in successful');
-      } catch (err) {
-        showError('Sign in failed: ' + err.message);
+      if (!email || !password) {
+        showError('Please enter email and password.');
         return;
       }
 
-      // Step 2: Set the session on the JS client
-      await sb.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
-      console.log('Session set on JS client');
+      showStatus('Signing in...');
 
-      spinner.style.display = 'block';
-      form.style.display = 'none';
+      // Sign in
+      var signInResult = await _supabase.auth.signInWithPassword({ email: email, password: password });
+      console.log('signIn result:', signInResult);
 
-      // Step 3: Approve using JS client (handles redirect properly)
-      try {
-        const { data, error: approveError } = await sb.auth.oauth.approveAuthorization(authorizationId);
-        console.log('Approve result:', data, approveError);
-
-        if (approveError) {
-          showError('Authorization failed: ' + approveError.message);
-          return;
-        }
-
-        if (data && data.redirect_to) {
-          window.location.href = data.redirect_to;
-        } else {
-          document.querySelector('.card').innerHTML = '<h1>Authorized</h1><p class="subtitle">You can close this window.</p>';
-        }
-      } catch (err) {
-        showError('Authorization failed: ' + err.message);
+      if (signInResult.error) {
+        showError('Sign in failed: ' + signInResult.error.message);
+        return;
       }
-    });
-    });
 
-    // Deny flow
-    denyBtn.addEventListener('click', async () => {
-      approveBtn.disabled = true;
-      denyBtn.disabled = true;
+      showStatus('Approving...');
 
-      try {
-        const { data, error: denyError } = await sb.auth.oauth.denyAuthorization(authorizationId);
+      // Approve
+      var approveResult = await _supabase.auth.oauth.approveAuthorization(authorizationId);
+      console.log('approve result:', approveResult);
 
-        if (denyError) {
-          showError('Deny failed: ' + denyError.message);
-          return;
-        }
-
-        if (data && data.redirect_to) {
-          window.location.href = data.redirect_to;
-        } else {
-          document.querySelector('.card').innerHTML = '<h1>Access denied</h1><p class="subtitle">You can close this window.</p>';
-        }
-      } catch (err) {
-        showError('Failed: ' + err.message);
+      if (approveResult.error) {
+        showError('Approve failed: ' + approveResult.error.message);
+        return;
       }
-    });
+
+      if (approveResult.data && approveResult.data.redirect_to) {
+        showStatus('Redirecting...');
+        window.location.href = approveResult.data.redirect_to;
+        return;
+      }
+
+      // Fallback
+      document.getElementById('card').innerHTML = '<h1>Authorized</h1><p class="subtitle">If you are not redirected, close this window and try again.</p>';
+    }
+
+    async function handleDeny() {
+      document.getElementById('approve-btn').disabled = true;
+      document.getElementById('deny-btn').disabled = true;
+
+      var denyResult = await _supabase.auth.oauth.denyAuthorization(authorizationId);
+      console.log('deny result:', denyResult);
+
+      if (denyResult.data && denyResult.data.redirect_to) {
+        window.location.href = denyResult.data.redirect_to;
+        return;
+      }
+
+      document.getElementById('card').innerHTML = '<h1>Access Denied</h1><p class="subtitle">You can close this window.</p>';
+    }
   </script>
 </body>
 </html>
