@@ -87,10 +87,9 @@
     }
 
     // Initialize Supabase client
-    // REPLACE with your actual project URL and anon key
     const SUPABASE_URL = 'https://nxirjlemmfnptwacnagh.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_twdCF-ILI8kJFA4B0Fhx3g_Lln9D5ff';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const form = document.getElementById('consent-form');
     const errorDiv = document.getElementById('error');
@@ -118,7 +117,7 @@
       const password = document.getElementById('password').value;
 
       // Sign in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await sb.auth.signInWithPassword({
         email: email,
         password: password,
       });
@@ -133,7 +132,7 @@
       form.style.display = 'none';
 
       try {
-        const { data, error: approveError } = await supabase.auth.oauth.approveAuthorization(authorizationId);
+        const { data, error: approveError } = await sb.auth.oauth.approveAuthorization(authorizationId);
 
         if (approveError) {
           showError('Authorization failed: ' + approveError.message);
@@ -156,7 +155,7 @@
       denyBtn.disabled = true;
 
       try {
-        const { data, error: denyError } = await supabase.auth.oauth.denyAuthorization(authorizationId);
+        const { data, error: denyError } = await sb.auth.oauth.denyAuthorization(authorizationId);
 
         if (denyError) {
           showError('Deny failed: ' + denyError.message);
