@@ -171,20 +171,46 @@
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ approved: true }),
+          redirect: 'manual',
         });
-        const approveData = await approveResp.json();
-        console.log('Approve response:', approveResp.status, approveData);
+        
+        console.log('Approve response status:', approveResp.status, approveResp.type);
+        
+        // 302/303 redirect means success — get the Location header
+        if (approveResp.status === 302 || approveResp.status === 303 || approveResp.type === 'opaqueredirect') {
+          const location = approveResp.headers.get('Location');
+          console.log('Redirect to:', location);
+          if (location) {
+            window.location.href = location;
+            return;
+          }
+        }
 
-        if (!approveResp.ok) {
-          showError('Authorization failed: ' + (approveData.message || approveData.error_description || JSON.stringify(approveData)));
+        // If we get an opaque redirect (CORS blocks Location header), 
+        // try the same request without redirect:manual to let the browser follow it
+        if (approveResp.type === 'opaqueredirect') {
+          console.log('Opaque redirect — letting browser follow');
+          window.location.href = SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId + '?approved=true';
           return;
         }
-
-        if (approveData.redirect_to) {
-          window.location.href = approveData.redirect_to;
-        } else {
-          document.querySelector('.card').innerHTML = '<h1>Authorized</h1><p class="subtitle">You can close this window.</p>';
+        
+        // Try to parse JSON response
+        const text = await approveResp.text();
+        console.log('Approve response body:', text);
+        
+        if (text) {
+          const approveData = JSON.parse(text);
+          if (approveData.redirect_to) {
+            window.location.href = approveData.redirect_to;
+            return;
+          }
+          if (!approveResp.ok) {
+            showError('Authorization failed: ' + (approveData.message || JSON.stringify(approveData)));
+            return;
+          }
         }
+        
+        document.querySelector('.card').innerHTML = '<h1>Authorized</h1><p class="subtitle">You can close this window.</p>';
       } catch (err) {
         showError('Authorization failed: ' + err.message);
       }
