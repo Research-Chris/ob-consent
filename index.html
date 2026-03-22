@@ -101,10 +101,22 @@
 
       // Sign in
       var signInResult = await _supabase.auth.signInWithPassword({ email: email, password: password });
-      console.log('signIn result:', signInResult);
+      console.log('signIn error:', signInResult.error);
+      console.log('signIn session:', signInResult.data?.session ? 'exists' : 'null');
+      console.log('signIn access_token:', signInResult.data?.session?.access_token ? signInResult.data.session.access_token.substring(0, 20) + '...' : 'none');
 
       if (signInResult.error) {
         showError('Sign in failed: ' + signInResult.error.message);
+        return;
+      }
+
+      // Verify session is actually set
+      var sessionCheck = await _supabase.auth.getSession();
+      console.log('getSession after signIn:', sessionCheck.data?.session ? 'exists' : 'null');
+      console.log('getSession token:', sessionCheck.data?.session?.access_token ? sessionCheck.data.session.access_token.substring(0, 20) + '...' : 'none');
+
+      if (!sessionCheck.data?.session) {
+        showError('Session not established after sign-in. This may be a cross-domain issue.');
         return;
       }
 
@@ -112,7 +124,8 @@
 
       // Approve
       var approveResult = await _supabase.auth.oauth.approveAuthorization(authorizationId);
-      console.log('approve result:', approveResult);
+      console.log('approve result data:', approveResult.data);
+      console.log('approve result error:', approveResult.error);
 
       if (approveResult.error) {
         showError('Approve failed: ' + approveResult.error.message);
