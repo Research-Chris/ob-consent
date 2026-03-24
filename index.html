@@ -125,14 +125,14 @@
       // Approve via direct API call (bypasses JS client version mismatch)
       var token = signInResult.data.session.access_token;
       try {
-        var approveResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId, {
+        var approveResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId + '/consent', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + token,
             'apikey': SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ approved: true }),
+          body: JSON.stringify({ consent_action: 'approve' }),
         });
 
         console.log('approve status:', approveResp.status);
