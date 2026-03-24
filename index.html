@@ -122,24 +122,64 @@
 
       showStatus('Approving...');
 
-      // Approve
-      var approveResult = await _supabase.auth.oauth.approveAuthorization(authorizationId);
-      console.log('approve result data:', approveResult.data);
-      console.log('approve result error:', approveResult.error);
+      // Approve via direct API call (bypasses JS client version mismatch)
+      var token = signInResult.data.session.access_token;
+      try {
+        var approveResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId, {
+          method: 'PUT',
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'apikey': SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ approved: true }),
+        });
 
-      if (approveResult.error) {
-        showError('Approve failed: ' + approveResult.error.message);
-        return;
+        console.log('approve status:', approveResp.status);
+        console.log('approve redirected:', approveResp.redirected);
+        console.log('approve url:', approveResp.url);
+
+        // If the response redirected, follow it
+        if (approveResp.redirected) {
+          console.log('Following redirect to:', approveResp.url);
+          window.location.href = approveResp.url;
+          return;
+        }
+
+        var approveText = await approveResp.text();
+        console.log('approve body:', approveText);
+
+        if (approveText) {
+          try {
+            var approveData = JSON.parse(approveText);
+            if (approveData.redirect_to) {
+              window.location.href = approveData.redirect_to;
+              return;
+            }
+            if (!approveResp.ok) {
+              showError('Approve failed: ' + (approveData.message || approveData.error_description || JSON.stringify(approveData)));
+              return;
+            }
+          } catch(e) {
+            // Not JSON — might be redirect HTML
+            console.log('Response not JSON');
+          }
+        }
+
+        // If status is 200/201 but no redirect, check the DB
+        if (approveResp.ok) {
+          showStatus('Approved! Waiting for redirect...');
+          // Give it a moment then show success
+          setTimeout(function() {
+            document.getElementById('card').innerHTML = '<h1>Authorized</h1><p class="subtitle">Check Claude — the connection should be active.</p>';
+          }, 3000);
+          return;
+        }
+
+        showError('Approve failed with status ' + approveResp.status);
+      } catch (err) {
+        showError('Approve failed: ' + err.message);
       }
-
-      if (approveResult.data && approveResult.data.redirect_to) {
-        showStatus('Redirecting...');
-        window.location.href = approveResult.data.redirect_to;
-        return;
-      }
-
-      // Fallback
-      document.getElementById('card').innerHTML = '<h1>Authorized</h1><p class="subtitle">If you are not redirected, close this window and try again.</p>';
     }
 
     async function handleDeny() {
