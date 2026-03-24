@@ -126,7 +126,7 @@
       var token = signInResult.data.session.access_token;
       try {
         var approveResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId, {
-          method: 'PUT',
+          method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + token,
             'apikey': SUPABASE_ANON_KEY,
