@@ -132,7 +132,7 @@
             'apikey': SUPABASE_ANON_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ consent_action: 'approve' }),
+          body: JSON.stringify({ action: 'approve' }),
         });
 
         console.log('approve status:', approveResp.status);
