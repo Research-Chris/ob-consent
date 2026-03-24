@@ -125,7 +125,7 @@
       // Approve via direct API calls
       var token = signInResult.data.session.access_token;
       try {
-        // Step A: GET authorization details (links user to authorization)
+        // Step A: GET authorization details (this approves and returns redirect)
         var detailsResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId, {
           method: 'GET',
           headers: {
@@ -137,61 +137,20 @@
         console.log('details status:', detailsResp.status);
         console.log('details body:', detailsText);
 
-        // Step B: POST consent to approve
-        var approveResp = await fetch(SUPABASE_URL + '/auth/v1/oauth/authorizations/' + authorizationId + '/consent', {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Bearer ' + token,
-            'apikey': SUPABASE_ANON_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ action: 'approve' }),
-        });
-
-        console.log('approve status:', approveResp.status);
-        console.log('approve redirected:', approveResp.redirected);
-        console.log('approve url:', approveResp.url);
-
-        // If the response redirected, follow it
-        if (approveResp.redirected) {
-          console.log('Following redirect to:', approveResp.url);
-          window.location.href = approveResp.url;
-          return;
-        }
-
-        var approveText = await approveResp.text();
-        console.log('approve body:', approveText);
-
-        if (approveText) {
-          try {
-            var approveData = JSON.parse(approveText);
-            if (approveData.redirect_to) {
-              window.location.href = approveData.redirect_to;
-              return;
-            }
-            if (!approveResp.ok) {
-              showError('Approve failed: ' + (approveData.message || approveData.error_description || JSON.stringify(approveData)));
-              return;
-            }
-          } catch(e) {
-            // Not JSON — might be redirect HTML
-            console.log('Response not JSON');
+        if (detailsResp.ok && detailsText) {
+          var detailsData = JSON.parse(detailsText);
+          // If we got a redirect_url, the authorization is approved — redirect now
+          if (detailsData.redirect_url) {
+            showStatus('Redirecting to Claude...');
+            window.location.href = detailsData.redirect_url;
+            return;
           }
         }
 
-        // If status is 200/201 but no redirect, check the DB
-        if (approveResp.ok) {
-          showStatus('Approved! Waiting for redirect...');
-          // Give it a moment then show success
-          setTimeout(function() {
-            document.getElementById('card').innerHTML = '<h1>Authorized</h1><p class="subtitle">Check Claude — the connection should be active.</p>';
-          }, 3000);
-          return;
-        }
-
-        showError('Approve failed with status ' + approveResp.status);
+        // If GET didn't return a redirect, something went wrong
+        showError('Authorization did not return a redirect. Status: ' + detailsResp.status + ' Body: ' + detailsText);
       } catch (err) {
-        showError('Approve failed: ' + err.message);
+        showError('Authorization failed: ' + err.message);
       }
     }
 
